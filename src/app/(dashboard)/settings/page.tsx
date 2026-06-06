@@ -8,6 +8,7 @@ import {
   User,
   Palette,
   UsersRound,
+  Plug,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
@@ -18,6 +19,8 @@ import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { MembersTab } from '@/components/settings/members-tab';
+import { IntegrationsPanel } from '@/components/settings/integrations-panel';
+import { useLanguage } from '@/hooks/use-language';
 
 const TAB_VALUES = [
   'profile',
@@ -26,6 +29,7 @@ const TAB_VALUES = [
   'tags',
   'appearance',
   'members',
+  'integrations',
 ] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
@@ -36,6 +40,7 @@ function isTabValue(v: string | null): v is TabValue {
 export default function SettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useLanguage();
 
   // The URL is the single source of truth for the active tab — no
   // local state, no sync effect. A previous revision duplicated this
@@ -53,10 +58,9 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Settings</h1>
+        <h1 className="text-2xl font-bold text-white">{t("settings.title")}</h1>
         <p className="text-sm text-slate-400 mt-1">
-          Manage your profile, WhatsApp® integration, message templates, and
-          tags.
+          {t("settings.subtitle")}
         </p>
       </div>
 
@@ -67,42 +71,49 @@ export default function SettingsPage() {
             className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
           >
             <User className="size-4" />
-            Profile
+            {t("settings.tabs.profile")}
           </TabsTrigger>
           <TabsTrigger
             value="whatsapp"
             className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
           >
             <Settings className="size-4" />
-            WhatsApp Config
+            {t("settings.tabs.whatsapp")}
           </TabsTrigger>
           <TabsTrigger
             value="templates"
             className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
           >
             <MessageSquare className="size-4" />
-            Templates
+            {t("settings.tabs.templates")}
           </TabsTrigger>
           <TabsTrigger
             value="tags"
             className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
           >
             <Tag className="size-4" />
-            Tags
+            {t("settings.tabs.tags")}
           </TabsTrigger>
           <TabsTrigger
             value="appearance"
             className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
           >
             <Palette className="size-4" />
-            Appearance
+            {t("settings.tabs.appearance")}
           </TabsTrigger>
           <TabsTrigger
             value="members"
             className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
           >
             <UsersRound className="size-4" />
-            Members
+            {t("settings.tabs.members")}
+          </TabsTrigger>
+          <TabsTrigger
+            value="integrations"
+            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+          >
+            <Plug className="size-4" />
+            {t("settings.tabs.integrations")}
           </TabsTrigger>
         </TabsList>
 
@@ -130,6 +141,10 @@ export default function SettingsPage() {
 
         <TabsContent value="members">
           <MembersTab />
+        </TabsContent>
+
+        <TabsContent value="integrations">
+          <IntegrationsPanel />
         </TabsContent>
       </Tabs>
     </div>

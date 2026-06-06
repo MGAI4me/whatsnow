@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Cairo } from "next/font/google";
 import Script from "next/script";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
+import { LanguageProvider } from "@/hooks/use-language";
 import { DEFAULT_THEME, STORAGE_KEY, THEME_IDS } from "@/lib/themes";
 
 const inter = Inter({
@@ -11,12 +12,18 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+const cairo = Cairo({
+  variable: "--font-cairo",
+  subsets: ["arabic"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+});
+
 export const metadata: Metadata = {
   title: {
-    default: "wacrm",
-    template: "%s — wacrm",
+    default: "WapiGrow",
+    template: "%s — WapiGrow",
   },
-  description: "Self-hostable CRM template for WhatsApp.",
+  description: "WhatsApp Marketing and Customer Relationship Management Platform.",
   robots: {
     index: false,
     follow: false,
@@ -60,6 +67,20 @@ const THEME_BOOT_SCRIPT = `
 })();
 `;
 
+const LANG_BOOT_SCRIPT = `
+(function(){
+  try {
+    var saved = localStorage.getItem("wapigrow.language");
+    var lang = (saved === "en" || saved === "ar") ? saved : "ar";
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+  } catch (_e) {
+    document.documentElement.lang = "ar";
+    document.documentElement.dir = "rtl";
+  }
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -67,9 +88,10 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="ar"
+      dir="rtl"
       data-theme={DEFAULT_THEME}
-      className={`${inter.variable} h-full antialiased`}
+      className={`${inter.variable} ${cairo.variable} h-full antialiased`}
       // The `theme-boot` script below rewrites `data-theme` on <html>
       // from localStorage before React hydrates, so for any non-default
       // theme the client DOM intentionally differs from the server-
@@ -84,22 +106,29 @@ export default function RootLayout({
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }}
         />
+        <Script
+          id="lang-boot"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: LANG_BOOT_SCRIPT }}
+        />
       </head>
       <body className="min-h-full bg-background text-foreground font-sans">
-        <ThemeProvider>
-          {children}
-          <Toaster
-            theme="dark"
-            position="top-right"
-            toastOptions={{
-              style: {
-                background: "rgb(30 41 59)",
-                border: "1px solid rgb(51 65 85)",
-                color: "white",
-              },
-            }}
-          />
-        </ThemeProvider>
+        <LanguageProvider>
+          <ThemeProvider>
+            {children}
+            <Toaster
+              theme="dark"
+              position="top-right"
+              toastOptions={{
+                style: {
+                  background: "rgb(30 41 59)",
+                  border: "1px solid rgb(51 65 85)",
+                  color: "white",
+                },
+              }}
+            />
+          </ThemeProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

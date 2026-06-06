@@ -70,6 +70,44 @@
  * ============================================================ */
 
 :root,
+html[data-theme="whatsnow"] {
+  --background: oklch(0.13 0.01 250);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.18 0.01 250);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.18 0.01 250);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.45 0.175 250);
+  --primary-foreground: oklch(0.985 0 0);
+  --primary-hover: oklch(0.40 0.165 250);
+  --primary-soft: oklch(0.45 0.175 250 / 0.12);
+  --primary-soft-2: oklch(0.45 0.175 250 / 0.22);
+  --secondary: oklch(0.22 0.01 250);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.22 0.01 250);
+  --muted-foreground: oklch(0.65 0.01 250);
+  --accent: oklch(0.22 0.01 250);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.28 0.01 250);
+  --input: oklch(0.28 0.01 250);
+  --ring: oklch(0.45 0.175 250);
+  --chart-1: oklch(0.45 0.175 250);
+  --chart-2: oklch(0.78 0.11 165);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.16 0.01 250);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.45 0.175 250);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.22 0.01 250);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.28 0.01 250);
+  --sidebar-ring: oklch(0.45 0.175 250);
+}
+
 html[data-theme="violet"] {
   --background: oklch(0.13 0.01 260);
   --foreground: oklch(0.985 0 0);
@@ -265,5 +303,14 @@ html[data-theme="rose"] {
   }
   html {
     @apply font-sans;
+  }
+  html[lang="ar"],
+  html[lang="ar"] body,
+  html[lang="ar"] button,
+  html[lang="ar"] input,
+  html[lang="ar"] select,
+  html[lang="ar"] textarea,
+  html[lang="ar"] .font-sans {
+    font-family: var(--font-cairo), sans-serif !important;
   }
 }

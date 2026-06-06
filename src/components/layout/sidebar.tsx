@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
+import { useLanguage } from "@/hooks/use-language";
 import {
   Crown,
   GitBranch,
@@ -22,6 +23,7 @@ import {
   Workflow,
   X,
   Zap,
+  Bot,
 } from "lucide-react";
 import type { AccountRole } from "@/lib/auth/roles";
 
@@ -93,6 +95,7 @@ const navItems: NavItem[] = [
   { href: "/pipelines", label: "Pipelines", icon: GitBranch },
   { href: "/broadcasts", label: "Broadcasts", icon: Radio },
   { href: "/automations", label: "Automations", icon: Zap },
+  { href: "/chatbots", label: "Chatbots", icon: Bot },
   { href: "/flows", label: "Flows", icon: Workflow, beta: true },
 ];
 
@@ -109,6 +112,7 @@ interface SidebarProps {
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
+  const { t, dir } = useLanguage();
   const totalUnread = useTotalUnread();
   // Only surface the account-name strip when it actually carries
   // information. A solo user's personal account is named after them
@@ -147,6 +151,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
     };
   }, [open, onClose]);
 
+  const closedTranslateClass = dir === "rtl" ? "translate-x-full" : "-translate-x-full";
+
   return (
     <>
       {/* Backdrop — only exists on mobile and only when open. Clicking
@@ -166,10 +172,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
 
       <aside
         className={cn(
-          // Mobile: fixed drawer that slides in from the left.
-          "fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r border-slate-800 bg-slate-900",
+          // Mobile: fixed drawer that slides in from the left/right.
+          "fixed inset-y-0 start-0 z-40 flex h-full w-64 flex-col border-e border-slate-800 bg-slate-900",
           "transition-transform duration-200 ease-out will-change-transform",
-          open ? "translate-x-0" : "-translate-x-full",
+          open ? "translate-x-0" : closedTranslateClass,
           // Desktop: static, always visible — reset all the mobile framing.
           "lg:static lg:z-0 lg:w-60 lg:translate-x-0 lg:transition-none",
         )}
@@ -183,7 +189,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <MessageSquare className="h-4 w-4" />
             </div>
             <span className="text-sm font-semibold text-white">
-              CRM Template for WhatsApp
+              {t("sidebar.brand")}
             </span>
           </Link>
           <button
@@ -220,7 +226,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     )}
                   >
                     <item.icon className="h-4 w-4" />
-                    <span className="flex-1">{item.label}</span>
+                    <span className="flex-1">{t(`sidebar.${item.label.toLowerCase()}`)}</span>
                     {item.beta && (
                       <span
                         aria-label="Beta feature"
@@ -261,7 +267,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     )}
                   >
                     <item.icon className="h-4 w-4" />
-                    {item.label}
+                    {t(`sidebar.${item.label.toLowerCase()}`)}
                   </Link>
                 </li>
               );
@@ -346,7 +352,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 }
               >
                 <User className="size-4" />
-                Profile
+                {t("sidebar.profile")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 render={
@@ -358,7 +364,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 }
               >
                 <Settings className="size-4" />
-                Settings
+                {t("sidebar.settings")}
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-slate-800" />
               <DropdownMenuItem
@@ -366,7 +372,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 className="text-slate-200 focus:bg-slate-800 focus:text-white"
               >
                 <LogOut className="size-4" />
-                Sign out
+                {t("sidebar.signOut")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

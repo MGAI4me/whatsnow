@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
-import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
+import { getMediaUrl, downloadMedia, sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { normalizePhone, phonesMatch } from '@/lib/whatsapp/phone-utils'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
@@ -274,7 +274,8 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           // inserts that need it for NOT NULL FK compliance. Always
           // the admin who saved the WhatsApp config.
           config.user_id,
-          decryptedAccessToken
+          decryptedAccessToken,
+          phoneNumberId
         )
       }
     }
@@ -508,7 +509,8 @@ async function processMessage(
   // (contacts, conversations). Always the admin who saved the
   // WhatsApp config; the choice is arbitrary post-017 but stable.
   configOwnerUserId: string,
-  accessToken: string
+  accessToken: string,
+  phoneNumberId: string
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -634,6 +636,118 @@ async function processMessage(
   // so the broadcast's `replied_count` advances (via the aggregate
   // trigger installed in migration 003).
   await flagBroadcastReplyIfAny(accountId, contactRecord.id)
+
+  // ============================================================
+  // Chatbots Processing
+  // ============================================================
+  const { data: chatbots, error: chatbotsErr } = await supabaseAdmin()
+    .from('chatbots')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('is_active', true)
+
+  if (!chatbotsErr && chatbots && chatbots.length > 0) {
+    const officeBot = chatbots.find((c: any) => c.trigger_type === 'office')
+    const faqBot = chatbots.find((c: any) => c.trigger_type === 'faq')
+    const welcomeBot = chatbots.find((c: any) => c.trigger_type === 'welcome')
+
+    let chatbotTriggered = false
+    const inboundText = contentText ?? message.text?.body ?? ''
+
+    // 1. Out of Office
+    if (officeBot) {
+      let startStr = "09:00"
+      let endStr = "18:00"
+      if (Array.isArray(officeBot.keywords) && officeBot.keywords.length >= 2) {
+        startStr = String(officeBot.keywords[0])
+        endStr = String(officeBot.keywords[1])
+      }
+
+      // Check working hours in Asia/Riyadh timezone
+      try {
+        const options = {
+          timeZone: 'Asia/Riyadh',
+          hour: 'numeric',
+          minute: 'numeric',
+          hour12: false
+        } as const
+        const formatter = new Intl.DateTimeFormat('en-US', options)
+        const parts = formatter.formatToParts(new Date())
+        const hourPart = parts.find(p => p.type === 'hour')?.value
+        const minutePart = parts.find(p => p.type === 'minute')?.value
+        const currentHour = hourPart ? parseInt(hourPart, 10) : 0
+        const currentMinute = minutePart ? parseInt(minutePart, 10) : 0
+        const currentMins = currentHour * 60 + currentMinute
+
+        const [startHour, startMin] = startStr.split(':').map(Number)
+        const [endHour, endMin] = endStr.split(':').map(Number)
+        const startMins = (startHour || 0) * 60 + (startMin || 0)
+        const endMins = (endHour || 0) * 60 + (endMin || 0)
+
+        let isWorkingHours = false
+        if (startMins <= endMins) {
+          isWorkingHours = currentMins >= startMins && currentMins <= endMins
+        } else {
+          isWorkingHours = currentMins >= startMins || currentMins <= endMins
+        }
+
+        if (!isWorkingHours) {
+          chatbotTriggered = true
+          await triggerChatbotReply({
+            accountId,
+            conversationId: conversation.id,
+            contactRecordId: contactRecord.id,
+            replyText: officeBot.reply_text,
+            phoneNumberId,
+            accessToken,
+            recipientPhone: senderPhone,
+            triggerType: 'office'
+          })
+        }
+      } catch (timezoneErr) {
+        console.error('[chatbot] Out of office timezone check failed:', timezoneErr)
+      }
+    }
+
+    // 2. FAQ Bot
+    if (!chatbotTriggered && faqBot && inboundText) {
+      let keywords: string[] = []
+      if (Array.isArray(faqBot.keywords)) {
+        keywords = faqBot.keywords.map(String)
+      }
+      const msgLower = inboundText.toLowerCase()
+      const hasKeyword = keywords.some(kw => msgLower.includes(kw.toLowerCase()))
+
+      if (hasKeyword) {
+        chatbotTriggered = true
+        await triggerChatbotReply({
+          accountId,
+          conversationId: conversation.id,
+          contactRecordId: contactRecord.id,
+          replyText: faqBot.reply_text,
+          phoneNumberId,
+          accessToken,
+          recipientPhone: senderPhone,
+          triggerType: 'faq'
+        })
+      }
+    }
+
+    // 3. Welcome Bot
+    if (!chatbotTriggered && welcomeBot && isFirstInboundMessage) {
+      chatbotTriggered = true
+      await triggerChatbotReply({
+        accountId,
+        conversationId: conversation.id,
+        contactRecordId: contactRecord.id,
+        replyText: welcomeBot.reply_text,
+        phoneNumberId,
+        accessToken,
+        recipientPhone: senderPhone,
+        triggerType: 'welcome'
+      })
+    }
+  }
 
   // ============================================================
   // Flow runner dispatch.
@@ -982,4 +1096,68 @@ async function findOrCreateConversation(
   }
 
   return newConv
+}
+
+async function triggerChatbotReply({
+  accountId,
+  conversationId,
+  contactRecordId,
+  replyText,
+  phoneNumberId,
+  accessToken,
+  recipientPhone,
+  triggerType,
+}: {
+  accountId: string
+  conversationId: string
+  contactRecordId: string
+  replyText: string
+  phoneNumberId: string
+  accessToken: string
+  recipientPhone: string
+  triggerType: string
+}) {
+  let wamid: string | null = null
+  try {
+    const metaResult = await sendTextMessage({
+      phoneNumberId,
+      accessToken,
+      to: recipientPhone,
+      text: replyText,
+    })
+    wamid = metaResult.messageId
+  } catch (err) {
+    console.error(`[chatbot] Failed to send ${triggerType} reply via Meta API:`, err)
+  }
+
+  // Insert bot reply into messages table
+  const { error: insertErr } = await supabaseAdmin()
+    .from('messages')
+    .insert({
+      conversation_id: conversationId,
+      sender_type: 'bot',
+      content_type: 'text',
+      content_text: replyText,
+      message_id: wamid || `bot-failed-${Date.now()}`,
+      status: wamid ? 'sent' : 'failed',
+      created_at: new Date().toISOString(),
+    })
+
+  if (insertErr) {
+    console.error('[chatbot] Failed to insert bot reply message:', insertErr)
+  }
+
+  // Update conversation last_message_text, last_message_at
+  const { error: convUpdateErr } = await supabaseAdmin()
+    .from('conversations')
+    .update({
+      last_message_text: replyText,
+      last_message_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', conversationId)
+
+  if (convUpdateErr) {
+    console.error('[chatbot] Failed to update conversation after bot reply:', convUpdateErr)
+  }
 }
